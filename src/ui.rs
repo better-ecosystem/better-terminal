@@ -107,19 +107,19 @@ pub fn build_ui(app: &Application) {
 fn apply_color_settings(terminal: &Terminal, colors: &ColorSettings) {
     if let Some(fg_str) = &colors.foreground {
         if let Ok(rgba) = fg_str.parse::<gdk::RGBA>() {
-            terminal.set_color_foreground(&rgba); 
+            terminal.set_color_foreground(&rgba);
         } else {
             eprintln!("Failed to parse foreground color for apply: {}", fg_str);
         }
-    } 
+    }
 
     if let Some(bg_str) = &colors.background {
         if let Ok(rgba) = bg_str.parse::<gdk::RGBA>() {
-            terminal.set_color_background(&rgba); 
+            terminal.set_color_background(&rgba);
         } else {
             eprintln!("Failed to parse background color for apply: {}", bg_str);
         }
-    } 
+    }
 
     let mut palette_gdk: Vec<gdk::RGBA> = Vec::new();
     for (i, color_opt_str) in colors.palette.iter().enumerate() {
@@ -128,17 +128,21 @@ fn apply_color_settings(terminal: &Terminal, colors: &ColorSettings) {
                 palette_gdk.push(rgba);
             } else {
                 eprintln!("Failed to parse palette color {} ({}): {}", i, color_str, color_str);
-                
             }
         }
     }
 
-    if !palette_gdk.is_empty() {
+    if palette_gdk.len() == 16 {
         let fg_gdk = colors.foreground.as_ref().and_then(|s| s.parse::<gdk::RGBA>().ok());
         let bg_gdk = colors.background.as_ref().and_then(|s| s.parse::<gdk::RGBA>().ok());
-        
+
         let palette_refs: Vec<&gdk::RGBA> = palette_gdk.iter().collect();
         terminal.set_colors(fg_gdk.as_ref(), bg_gdk.as_ref(), &palette_refs);
+    } else if !palette_gdk.is_empty() {
+        eprintln!(
+            "Warning: Palette size is {}, not 16. Palette colors will not be applied.",
+            palette_gdk.len()
+        );
     }
 }
 
@@ -343,14 +347,9 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
 
         if selected_idx_at_close != gtk4::INVALID_LIST_POSITION {
             if let Some(selected_preset_object) = ColorSchemePreset::all_presets().get(selected_idx_at_close as usize) {
-                // If a preset is selected in the dropdown, save this preset's canonical settings.
                 settings_to_save = get_preset_colors(selected_preset_object);
-                // get_preset_colors ensures settings_to_save.active_preset is Some(selected_preset_object.name())
             } else {
-                // This case should ideally not be reached if selected_idx_at_close is valid.
-                // Fallback to treating as custom colors.
                 settings_to_save.active_preset = None;
-                // Collect current color values from buttons if falling back
                 settings_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
                 settings_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
                 for (idx, p_button) in palette_buttons_clone_for_save.iter().enumerate() {
@@ -360,9 +359,6 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
                 }
             }
         } else {
-            // No preset is selected in the dropdown (INVALID_LIST_POSITION).
-            // This implies custom colors are active.
-            // Ensure active_preset is None and save the current color values from the buttons.
             settings_to_save.active_preset = None;
             settings_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
             settings_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
