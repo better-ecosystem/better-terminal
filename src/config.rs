@@ -117,9 +117,11 @@ pub fn load_title_bar_setting() -> bool {
             if let Ok(mut file) = File::open(config_path) {
                 let mut contents = String::new();
                 if file.read_to_string(&mut contents).is_ok() {
-                    for line in contents.lines() {
-                        if line.starts_with("titlebar") {
-                            let parts: Vec<&str> = line.split('=').map(|s| s.trim()).collect();
+                    let normalized_contents = contents.replace("\\n", "\n");
+                    for line in normalized_contents.lines() {
+                        let trimmed_line = line.trim();
+                        if trimmed_line.starts_with("titlebar =") {
+                            let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
                             if parts.len() == 2 && parts[0] == "titlebar" {
                                 return parts[1] == "true";
                             }
@@ -139,24 +141,29 @@ pub fn load_color_settings() -> ColorSettings {
             if let Ok(mut file) = File::open(config_path) {
                 let mut contents = String::new();
                 if file.read_to_string(&mut contents).is_ok() {
+                    let normalized_contents = contents.replace("\\n", "\n");
                     let mut preset_from_config: Option<ColorSchemePreset> = None;
-                    for line in contents.lines() {
-                        let parts: Vec<&str> = line.split('=').map(|s| s.trim()).collect();
+                    for line in normalized_contents.lines() {
+                        let trimmed_line = line.trim();
+                        if trimmed_line.is_empty() {
+                            continue;
+                        }
+                        let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
                         if parts.len() == 2 {
                             match parts[0] {
                                 "active_preset" => {
                                     if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
-                                        settings = get_preset_colors(&preset);
+                                        settings = get_preset_colors(&preset); 
                                         preset_from_config = Some(preset);
                                     }
-                                     settings.active_preset = Some(parts[1].to_string());
+                                    settings.active_preset = Some(parts[1].to_string()); 
                                 }
                                 "foreground" => if preset_from_config.is_none() { settings.foreground = Some(parts[1].to_string()) },
                                 "background" => if preset_from_config.is_none() { settings.background = Some(parts[1].to_string()) },
                                 key if key.starts_with("color") => {
                                     if preset_from_config.is_none() {
-                                        if let Ok(index) = key[5..].parse::<usize>() {
-                                            if index < 16 {
+                                        if let Ok(index) = key["color".len()..].parse::<usize>() {
+                                            if index < settings.palette.len() {
                                                 settings.palette[index] = Some(parts[1].to_string());
                                             }
                                         }
@@ -184,33 +191,28 @@ pub fn save_title_bar_setting(is_visible: bool) {
             }
         }
         
-        let mut config_content = String::new();
+        let mut existing_content = String::new();
         if config_path.exists() {
             if let Ok(mut file) = File::open(&config_path) {
-                if file.read_to_string(&mut config_content).is_err() {
-                    eprintln!("Failed to read existing config file, will overwrite.");
-                    config_content.clear();
+                if file.read_to_string(&mut existing_content).is_err() {
+                    eprintln!("Failed to read existing config file, will create/overwrite.");
+                    existing_content.clear();
                 }
             }
         }
 
-        let mut new_lines = Vec::new();
-        let mut titlebar_found = false;
-        for line in config_content.lines() {
-            if line.starts_with("titlebar") {
-                new_lines.push(format!("titlebar = {}", is_visible));
-                titlebar_found = true;
-            } else {
-                new_lines.push(line.to_string());
-            }
-        }
+        let normalized_content = existing_content.replace("\\n", "\n");
 
-        if !titlebar_found {
-            new_lines.push(format!("titlebar = {}", is_visible));
-        }
+        let mut output_lines: Vec<String> = normalized_content
+            .lines()
+            .filter(|line_str| !line_str.trim().starts_with("titlebar ="))
+            .map(|s| s.to_string())
+            .collect();
+
+        output_lines.push(format!("titlebar = {}", is_visible));
 
         if let Ok(mut file) = File::create(config_path) {
-            if let Err(e) = file.write_all(new_lines.join("\\n").as_bytes()) {
+            if let Err(e) = file.write_all(output_lines.join("\n").as_bytes()) {
                 eprintln!("Failed to write to config file: {}", e);
             }
         } else {
@@ -221,7 +223,6 @@ pub fn save_title_bar_setting(is_visible: bool) {
 
 pub fn save_color_settings(settings: &ColorSettings) {
     if let Some(config_path) = get_config_path() {
-        
         if let Some(parent_dir) = config_path.parent() {
             if !parent_dir.exists() {
                 if let Err(e) = fs::create_dir_all(parent_dir) {
@@ -231,36 +232,34 @@ pub fn save_color_settings(settings: &ColorSettings) {
             }
         }
 
-        let mut existing_lines: Vec<String> = Vec::new();
+        let mut existing_content = String::new();
         if config_path.exists() {
             if let Ok(mut file) = File::open(&config_path) {
-                let mut contents = String::new();
-                if file.read_to_string(&mut contents).is_ok() {
-                    existing_lines = contents.lines().map(|s| s.to_string()).collect();
-                } else {
-                    eprintln!("Failed to read existing config file, will overwrite relevant parts.");
+                if file.read_to_string(&mut existing_content).is_err() {
+                    eprintln!("Failed to read existing config file, will create/overwrite relevant parts.");
+                    existing_content.clear();
                 }
             }
         }
+        
+        let normalized_content = existing_content.replace("\\n", "\n");
 
-        let mut new_lines: Vec<String> = existing_lines
-            .into_iter()
-            .filter(|line| {
-                !line.starts_with("foreground =") &&
-                !line.starts_with("background =") &&
-                !line.starts_with("active_preset =") && 
-                !(line.starts_with("color") && line.contains('=')) 
+        let mut new_lines: Vec<String> = normalized_content
+            .lines()
+            .map(|s| s.to_string())
+            .filter(|line_str| {
+                let trimmed_line = line_str.trim();
+                if trimmed_line.starts_with("foreground =") { return false; }
+                if trimmed_line.starts_with("background =") { return false; }
+                if trimmed_line.starts_with("active_preset =") { return false; }
+                if trimmed_line.starts_with("color") && trimmed_line.contains('=') { return false; }
+                true 
             })
             .collect();
 
         if let Some(preset_name) = &settings.active_preset {
             new_lines.push(format!("active_preset = {}", preset_name));
-            
-            
-            
-            
             if ColorSchemePreset::from_name(preset_name).is_none() {
-                 
                 if let Some(fg) = &settings.foreground {
                     new_lines.push(format!("foreground = {}", fg));
                 }
@@ -287,9 +286,8 @@ pub fn save_color_settings(settings: &ColorSettings) {
             }
         }
 
-
         if let Ok(mut file) = File::create(&config_path) {
-            if let Err(e) = file.write_all(new_lines.join("\\\\n").as_bytes()) {
+            if let Err(e) = file.write_all(new_lines.join("\n").as_bytes()) {
                 eprintln!("Failed to write to config file: {}", e);
             }
         } else {
