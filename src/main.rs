@@ -53,5 +53,10 @@ fn build_ui(app: &Application) {
         .content(&content_box)
         .build();
 
+    let window_clone = window.clone();
+    terminal.connect_child_exited(move |_terminal, _status| {
+        window_clone.close();
+    });
+
     window.present();
 }
