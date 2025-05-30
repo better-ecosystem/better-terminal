@@ -1,26 +1,27 @@
 use crate::config::ColorSettings;
 
 pub fn get_colors() -> ColorSettings {
-    let mut settings = ColorSettings::default();
-    settings.background = Some("rgba(40, 40, 40, 1.0)".to_string());
-    settings.foreground = Some("rgba(235, 219, 178, 1.0)".to_string());
-    settings.palette = vec![
-        Some("rgba(40, 40, 40, 1.0)".to_string()),
-        Some("rgba(204, 36, 29, 1.0)".to_string()),
-        Some("rgba(152, 151, 26, 1.0)".to_string()),
-        Some("rgba(215, 153, 33, 1.0)".to_string()),
-        Some("rgba(69, 133, 136, 1.0)".to_string()),
-        Some("rgba(177, 98, 134, 1.0)".to_string()),
-        Some("rgba(104, 157, 106, 1.0)".to_string()),
-        Some("rgba(168, 153, 132, 1.0)".to_string()),
-        Some("rgba(146, 131, 116, 1.0)".to_string()),
-        Some("rgba(251, 73, 52, 1.0)".to_string()),
-        Some("rgba(184, 187, 38, 1.0)".to_string()),
-        Some("rgba(250, 189, 47, 1.0)".to_string()),
-        Some("rgba(131, 165, 152, 1.0)".to_string()),
-        Some("rgba(211, 134, 155, 1.0)".to_string()),
-        Some("rgba(142, 192, 124, 1.0)".to_string()),
-        Some("rgba(235, 219, 178, 1.0)".to_string()),
-    ];
-    settings
+    ColorSettings {
+        foreground: Some("#ebdbb2".to_string()), // fg
+        background: Some("#282828".to_string()), // bg
+        palette: vec![
+            Some("#282828".to_string()), // Normal Black (bg0_h)
+            Some("#cc241d".to_string()), // Normal Red
+            Some("#98971a".to_string()), // Normal Green
+            Some("#d79921".to_string()), // Normal Yellow
+            Some("#458588".to_string()), // Normal Blue
+            Some("#b16286".to_string()), // Normal Magenta
+            Some("#689d6a".to_string()), // Normal Cyan
+            Some("#a89984".to_string()), // Normal White (fg4)
+            Some("#928374".to_string()), // Bright Black (gray)
+            Some("#fb4934".to_string()), // Bright Red
+            Some("#b8bb26".to_string()), // Bright Green
+            Some("#fabd2f".to_string()), // Bright Yellow
+            Some("#83a598".to_string()), // Bright Blue
+            Some("#d3869b".to_string()), // Bright Magenta
+            Some("#8ec07c".to_string()), // Bright Cyan
+            Some("#ebdbb2".to_string()), // Bright White (fg)
+        ],
+        active_preset: Some("GruvboxDark".to_string()), // This will be overwritten by config::get_preset_colors, but good for consistency
+    }
 }
