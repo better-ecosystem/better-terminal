@@ -11,6 +11,7 @@ pub const CONFIG_FILE: &str = "better-terminal.conf";
 pub enum ColorSchemePreset {
     GruvboxDark,
     CatppuccinMocha,
+    Monokai,
 }
 
 impl ColorSchemePreset {
@@ -18,6 +19,7 @@ impl ColorSchemePreset {
         match self {
             ColorSchemePreset::GruvboxDark => "GruvboxDark",
             ColorSchemePreset::CatppuccinMocha => "CatppuccinMocha",
+            ColorSchemePreset::Monokai => "Monokai",
         }
     }
 
@@ -25,12 +27,13 @@ impl ColorSchemePreset {
         match name {
             "GruvboxDark" => Some(ColorSchemePreset::GruvboxDark),
             "CatppuccinMocha" => Some(ColorSchemePreset::CatppuccinMocha),
+            "Monokai" => Some(ColorSchemePreset::Monokai),
             _ => None,
         }
     }
 
     pub fn all_presets() -> Vec<Self> {
-        vec![ColorSchemePreset::GruvboxDark, ColorSchemePreset::CatppuccinMocha]
+        vec![ColorSchemePreset::GruvboxDark, ColorSchemePreset::CatppuccinMocha, ColorSchemePreset::Monokai]
     }
 }
 
@@ -62,6 +65,9 @@ pub fn get_preset_colors(preset: &ColorSchemePreset) -> ColorSettings {
         }
         ColorSchemePreset::CatppuccinMocha => {
             settings = color_schemes::catppuccin_mocha::get_colors();
+        }
+        ColorSchemePreset::Monokai => {
+            settings = color_schemes::monokai::get_colors();
         }
     }
     settings.active_preset = Some(preset.name().to_string());
