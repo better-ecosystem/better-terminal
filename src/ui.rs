@@ -164,7 +164,11 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
     if let Some(active_preset_name) = &current_colors.borrow().active_preset {
         if let Some(pos) = preset_names.iter().position(|&name| name == active_preset_name) {
             preset_dropdown.set_selected(pos as u32);
+        } else {
+            preset_dropdown.set_selected(gtk4::INVALID_LIST_POSITION);
         }
+    } else {
+        preset_dropdown.set_selected(gtk4::INVALID_LIST_POSITION);
     }
 
     let preset_row = ActionRow::builder()
@@ -334,32 +338,43 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
     let current_colors_clone_save = Rc::clone(&current_colors);
 
     preferences_window.connect_close_request(move |_window| {
-        let final_colors_ref = current_colors_clone_save.borrow();
-        let mut final_colors_to_save = final_colors_ref.clone(); 
+        let mut settings_to_save = current_colors_clone_save.borrow().clone();
+        let selected_idx_at_close = preset_dropdown_clone_save.selected();
 
-        let selected_preset_idx = preset_dropdown_clone_save.selected();
-
-        if selected_preset_idx != gtk4::INVALID_LIST_POSITION {
-            if let Some(preset) = ColorSchemePreset::all_presets().get(selected_preset_idx as usize) {
-                if final_colors_to_save.active_preset.as_deref() == Some(preset.name()) {
-                    final_colors_to_save = get_preset_colors(preset); 
-                } else if final_colors_to_save.active_preset.is_none() {
+        if selected_idx_at_close != gtk4::INVALID_LIST_POSITION {
+            if let Some(selected_preset_object) = ColorSchemePreset::all_presets().get(selected_idx_at_close as usize) {
+                // If a preset is selected in the dropdown, save this preset's canonical settings.
+                settings_to_save = get_preset_colors(selected_preset_object);
+                // get_preset_colors ensures settings_to_save.active_preset is Some(selected_preset_object.name())
+            } else {
+                // This case should ideally not be reached if selected_idx_at_close is valid.
+                // Fallback to treating as custom colors.
+                settings_to_save.active_preset = None;
+                // Collect current color values from buttons if falling back
+                settings_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
+                settings_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
+                for (idx, p_button) in palette_buttons_clone_for_save.iter().enumerate() {
+                    if idx < settings_to_save.palette.len() {
+                        settings_to_save.palette[idx] = Some(p_button.rgba().to_string());
+                    }
                 }
             }
-        }
-        
-        if final_colors_to_save.active_preset.is_none() {
-            final_colors_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
-            final_colors_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
+        } else {
+            // No preset is selected in the dropdown (INVALID_LIST_POSITION).
+            // This implies custom colors are active.
+            // Ensure active_preset is None and save the current color values from the buttons.
+            settings_to_save.active_preset = None;
+            settings_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
+            settings_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
             for (idx, p_button) in palette_buttons_clone_for_save.iter().enumerate() {
-                if idx < final_colors_to_save.palette.len() {
-                    final_colors_to_save.palette[idx] = Some(p_button.rgba().to_string());
+                if idx < settings_to_save.palette.len() {
+                    settings_to_save.palette[idx] = Some(p_button.rgba().to_string());
                 }
             }
         }
 
-        save_color_settings(&final_colors_to_save);
-        apply_color_settings(&terminal_clone_for_save, &final_colors_to_save);
+        save_color_settings(&settings_to_save);
+        apply_color_settings(&terminal_clone_for_save, &settings_to_save);
         glib::Propagation::Proceed
     });
 
