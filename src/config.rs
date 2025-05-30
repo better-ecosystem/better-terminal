@@ -14,6 +14,7 @@ pub enum ColorSchemePreset {
     Monokai,
     Nord,
     TokyoNight,
+    Custom,
 }
 
 impl ColorSchemePreset {
@@ -24,6 +25,7 @@ impl ColorSchemePreset {
             ColorSchemePreset::Monokai => "Monokai",
             ColorSchemePreset::Nord => "Nord",
             ColorSchemePreset::TokyoNight => "TokyoNight",
+            ColorSchemePreset::Custom => "Custom",
         }
     }
 
@@ -34,17 +36,19 @@ impl ColorSchemePreset {
             "Monokai" => Some(ColorSchemePreset::Monokai),
             "Nord" => Some(ColorSchemePreset::Nord),
             "TokyoNight" => Some(ColorSchemePreset::TokyoNight),
+            "Custom" => Some(ColorSchemePreset::Custom),
             _ => None,
         }
     }
 
     pub fn all_presets() -> Vec<Self> {
         vec![
-            ColorSchemePreset::GruvboxDark, 
-            ColorSchemePreset::CatppuccinMocha, 
+            ColorSchemePreset::GruvboxDark,
+            ColorSchemePreset::CatppuccinMocha,
             ColorSchemePreset::Monokai,
             ColorSchemePreset::Nord,
             ColorSchemePreset::TokyoNight,
+            ColorSchemePreset::Custom,
         ]
     }
 }
@@ -86,6 +90,9 @@ pub fn get_preset_colors(preset: &ColorSchemePreset) -> ColorSettings {
         }
         ColorSchemePreset::TokyoNight => {
             settings = color_schemes::tokyo_night::get_colors();
+        }
+        ColorSchemePreset::Custom => {
+            settings = color_schemes::custom::get_colors();
         }
     }
     settings.active_preset = Some(preset.name().to_string());

@@ -240,6 +240,9 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
 
     preferences_window.add(&page);
 
+    let general_group_clone = general_group.clone();
+    let ansi_group_clone = ansi_group.clone();
+
     let terminal_clone_for_preset_apply = terminal.clone();
     let fg_button_clone_for_preset_update = fg_color_button.clone();
     let bg_button_clone_for_preset_update = bg_color_button.clone();
@@ -252,6 +255,13 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
             let preset_settings = get_preset_colors(preset);
             *current_colors_clone_for_preset.borrow_mut() = preset_settings.clone();
 
+            if preset.name() == "Custom" {
+                general_group_clone.set_visible(true);
+                ansi_group_clone.set_visible(true);
+            } else {
+                general_group_clone.set_visible(false);
+                ansi_group_clone.set_visible(false);
+            }
             
             if let Some(fg_str) = &preset_settings.foreground {
                 if let Ok(rgba) = fg_str.parse::<gdk::RGBA>() {
@@ -275,6 +285,19 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
             apply_color_settings(&terminal_clone_for_preset_apply, &preset_settings);
         }
     });
+
+    if let Some(active_preset_name) = &current_colors.borrow().active_preset {
+        if active_preset_name == "Custom" {
+            general_group.set_visible(true);
+            ansi_group.set_visible(true);
+        } else {
+            general_group.set_visible(false);
+            ansi_group.set_visible(false);
+        }
+    } else {
+        general_group.set_visible(true);
+        ansi_group.set_visible(true);
+    }
 
     let terminal_fg_clone = terminal.clone();
     let preset_dropdown_clone_fg = preset_dropdown.clone();
