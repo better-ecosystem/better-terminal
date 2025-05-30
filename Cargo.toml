@@ -1,0 +1,14 @@
+[package]
+name = "better-terminal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gtk4 = "0.9.6"
+libadwaita = "0.7.2"
+vte4 = "0.8.0"
+glib = "0.20"
+
+[build-dependencies]
+glib-build-tools = "0.19.0"
+gtk4-macros = "0.9.0"
