@@ -72,6 +72,21 @@ impl Default for ColorSettings {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct AppSettings {
+    pub title_bar_visible: bool,
+    pub colors: ColorSettings,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        AppSettings {
+            title_bar_visible: true,
+            colors: ColorSettings::default(),
+        }
+    }
+}
+
 pub fn get_preset_colors(preset: &ColorSchemePreset) -> ColorSettings {
     let mut settings = ColorSettings::default();
     settings.active_preset = Some(preset.name().to_string());
@@ -107,19 +122,50 @@ pub fn get_config_path() -> Option<PathBuf> {
     })
 }
 
-pub fn load_title_bar_setting() -> bool {
+pub fn load_app_settings() -> AppSettings {
+    let mut app_settings = AppSettings::default();
     if let Some(config_path) = get_config_path() {
         if config_path.exists() {
             if let Ok(mut file) = File::open(config_path) {
                 let mut contents = String::new();
                 if file.read_to_string(&mut contents).is_ok() {
-                    let normalized_contents = contents.replace("\\n", "\n");
-                    for line in normalized_contents.lines() {
+                    let mut preset_from_config: Option<ColorSchemePreset> = None;
+
+                    for line in contents.lines() {
                         let trimmed_line = line.trim();
-                        if trimmed_line.starts_with("titlebar =") {
-                            let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
-                            if parts.len() == 2 && parts[0] == "titlebar" {
-                                return parts[1] == "true";
+                        if trimmed_line.is_empty() {
+                            continue;
+                        }
+
+                        let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
+                        if parts.len() == 2 {
+                            match parts[0] {
+                                "titlebar" => {
+                                    app_settings.title_bar_visible = parts[1] == "true";
+                                }
+                                "active_preset" => {
+                                    if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
+                                        app_settings.colors = get_preset_colors(&preset);
+                                        preset_from_config = Some(preset);
+                                    }
+                                    app_settings.colors.active_preset = Some(parts[1].to_string());
+                                }
+                                "foreground" => if preset_from_config.is_none() {
+                                    app_settings.colors.foreground = Some(parts[1].to_string());
+                                },
+                                "background" => if preset_from_config.is_none() {
+                                    app_settings.colors.background = Some(parts[1].to_string());
+                                },
+                                key if key.starts_with("color") => {
+                                    if preset_from_config.is_none() {
+                                        if let Ok(index) = key["color".len()..].parse::<usize>() {
+                                            if index < app_settings.colors.palette.len() {
+                                                app_settings.colors.palette[index] = Some(parts[1].to_string());
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => {} // Ignore other keys
                             }
                         }
                     }
@@ -127,7 +173,7 @@ pub fn load_title_bar_setting() -> bool {
             }
         }
     }
-    true
+    app_settings
 }
 
 pub fn load_color_settings() -> ColorSettings {
@@ -137,9 +183,8 @@ pub fn load_color_settings() -> ColorSettings {
             if let Ok(mut file) = File::open(config_path) {
                 let mut contents = String::new();
                 if file.read_to_string(&mut contents).is_ok() {
-                    let normalized_contents = contents.replace("\\n", "\n");
                     let mut preset_from_config: Option<ColorSchemePreset> = None;
-                    for line in normalized_contents.lines() {
+                    for line in contents.lines() {
                         let trimmed_line = line.trim();
                         if trimmed_line.is_empty() {
                             continue;

@@ -2,20 +2,23 @@ use gtk4::prelude::*;
 use vte4::prelude::*;
 use gtk4::{gio, Application, Box, Orientation, PopoverMenu, GestureClick, ColorButton, gdk, DropDown, StringList}; 
 use libadwaita::{ApplicationWindow, HeaderBar, PreferencesWindow, PreferencesGroup, ActionRow};
-use libadwaita::prelude::*; 
+use libadwaita::prelude::*;
 
 use vte4::Terminal;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use crate::config::{load_title_bar_setting, save_title_bar_setting, load_color_settings, save_color_settings, ColorSettings, ColorSchemePreset, get_preset_colors};
+use crate::config::{save_title_bar_setting, load_color_settings, save_color_settings, ColorSettings, ColorSchemePreset, get_preset_colors, load_app_settings};
 
 pub fn build_ui(app: &Application) {
     let terminal = Terminal::new();
     terminal.set_hexpand(true);
     terminal.set_vexpand(true);
-    
-    let colors = load_color_settings();
+
+    let app_settings = load_app_settings();
+    let colors = app_settings.colors;
+    let initial_title_bar_visible = app_settings.title_bar_visible;
+
     apply_color_settings(&terminal, &colors);
 
     let default_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
@@ -37,7 +40,6 @@ pub fn build_ui(app: &Application) {
     let header_bar = HeaderBar::new();
     header_bar.set_show_end_title_buttons(true);
 
-    let initial_title_bar_visible = load_title_bar_setting();
     header_bar.set_visible(initial_title_bar_visible);
 
     let content_box = Box::new(Orientation::Vertical, 0);
