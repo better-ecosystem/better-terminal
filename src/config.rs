@@ -2,6 +2,8 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
+use crate::color_schemes;
+
 pub const CONFIG_DIR: &str = ".config/better-terminal";
 pub const CONFIG_FILE: &str = "better-terminal.conf";
 
@@ -56,50 +58,13 @@ pub fn get_preset_colors(preset: &ColorSchemePreset) -> ColorSettings {
     settings.active_preset = Some(preset.name().to_string());
     match preset {
         ColorSchemePreset::GruvboxDark => {
-            settings.background = Some("rgba(40, 40, 40, 1.0)".to_string());
-            settings.foreground = Some("rgba(235, 219, 178, 1.0)".to_string());
-            settings.palette = vec![
-                Some("rgba(40, 40, 40, 1.0)".to_string()),
-                Some("rgba(204, 36, 29, 1.0)".to_string()),
-                Some("rgba(152, 151, 26, 1.0)".to_string()),
-                Some("rgba(215, 153, 33, 1.0)".to_string()),
-                Some("rgba(69, 133, 136, 1.0)".to_string()),
-                Some("rgba(177, 98, 134, 1.0)".to_string()),
-                Some("rgba(104, 157, 106, 1.0)".to_string()),
-                Some("rgba(168, 153, 132, 1.0)".to_string()),
-                Some("rgba(146, 131, 116, 1.0)".to_string()),
-                Some("rgba(251, 73, 52, 1.0)".to_string()),
-                Some("rgba(184, 187, 38, 1.0)".to_string()),
-                Some("rgba(250, 189, 47, 1.0)".to_string()),
-                Some("rgba(131, 165, 152, 1.0)".to_string()),
-                Some("rgba(211, 134, 155, 1.0)".to_string()),
-                Some("rgba(142, 192, 124, 1.0)".to_string()),
-                Some("rgba(235, 219, 178, 1.0)".to_string()),
-            ];
+            settings = color_schemes::gruvbox_dark::get_colors();
         }
         ColorSchemePreset::CatppuccinMocha => {
-            settings.background = Some("rgba(30, 30, 46, 1.0)".to_string());
-            settings.foreground = Some("rgba(205, 214, 244, 1.0)".to_string());
-            settings.palette = vec![
-                Some("rgba(73, 77, 100, 1.0)".to_string()),
-                Some("rgba(243, 139, 168, 1.0)".to_string()),
-                Some("rgba(166, 227, 161, 1.0)".to_string()),
-                Some("rgba(249, 226, 175, 1.0)".to_string()),
-                Some("rgba(137, 180, 250, 1.0)".to_string()),
-                Some("rgba(245, 194, 231, 1.0)".to_string()),
-                Some("rgba(148, 226, 213, 1.0)".to_string()),
-                Some("rgba(186, 194, 222, 1.0)".to_string()),
-                Some("rgba(88, 91, 112, 1.0)".to_string()),
-                Some("rgba(243, 139, 168, 1.0)".to_string()),
-                Some("rgba(166, 227, 161, 1.0)".to_string()),
-                Some("rgba(249, 226, 175, 1.0)".to_string()),
-                Some("rgba(137, 180, 250, 1.0)".to_string()),
-                Some("rgba(245, 194, 231, 1.0)".to_string()),
-                Some("rgba(148, 226, 213, 1.0)".to_string()),
-                Some("rgba(166, 173, 200, 1.0)".to_string()),
-            ];
+            settings = color_schemes::catppuccin_mocha::get_colors();
         }
     }
+    settings.active_preset = Some(preset.name().to_string());
     settings
 }
 

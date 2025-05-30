@@ -1,5 +1,6 @@
 mod config;
 mod ui;
+mod color_schemes;
 
 use gtk4::prelude::*;
 use gtk4::Application;
