@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use vte4::prelude::*;
-use gtk4::{gio, Application, Box, Orientation, PopoverMenu, GestureClick, ColorButton, gdk, DropDown, StringList}; 
+use gtk4::{gio, Application, Box, Orientation, PopoverMenu, GestureClick, ColorButton, gdk, DropDown, StringList, FontButton}; 
 use libadwaita::{ApplicationWindow, HeaderBar, PreferencesWindow, PreferencesGroup, ActionRow};
 use libadwaita::prelude::*;
 
@@ -8,7 +8,7 @@ use vte4::Terminal;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use crate::config::{save_title_bar_setting, load_color_settings, save_color_settings, ColorSettings, ColorSchemePreset, load_app_settings, get_preset_colors};
+use crate::config::{save_title_bar_setting, load_color_settings, save_color_settings, ColorSettings, ColorSchemePreset, load_app_settings, get_preset_colors, save_font_family_setting};
 
 pub fn build_ui(app: &Application) {
     let terminal = Terminal::new();
@@ -17,12 +17,12 @@ pub fn build_ui(app: &Application) {
 
     let app_settings = load_app_settings();
     let colors = app_settings.colors;
+    let font_family = app_settings.font_family;
     let font_size = app_settings.font_size;
     let initial_title_bar_visible = app_settings.title_bar_visible;
 
     apply_color_settings(&terminal, &colors);
-    // Apply font size to terminal
-    let font_desc = pango::FontDescription::from_string(&format!("Monospace {}", font_size));
+    let font_desc = pango::FontDescription::from_string(&format!("{} {}", font_family, font_size));
     terminal.set_font(Some(&font_desc));
 
     let default_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
@@ -155,6 +155,7 @@ fn apply_color_settings(terminal: &Terminal, colors: &ColorSettings) {
 fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
     let current_colors = Rc::new(RefCell::new(load_color_settings()));
     let app_settings = load_app_settings();
+    let current_font_family = Rc::new(RefCell::new(app_settings.font_family));
     let current_font_size = Rc::new(RefCell::new(app_settings.font_size));
 
     let preferences_window = PreferencesWindow::builder()
@@ -248,10 +249,21 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
 
     preferences_window.add(&page);
 
-    // Add font size control group
-    let font_size_group = PreferencesGroup::builder()
-        .title("Font Size")
+    let font_group = PreferencesGroup::builder()
+        .title("Font")
         .build();
+
+    let font_button = FontButton::new();
+    let current_font_desc_str = format!("{} {}", current_font_family.borrow(), current_font_size.borrow());
+    let font_desc = pango::FontDescription::from_string(&current_font_desc_str);
+    font_button.set_font_desc(&font_desc);
+
+    let font_row = ActionRow::builder()
+        .title("Font Family")
+        .activatable_widget(&font_button)
+        .build();
+    font_row.add_suffix(&font_button);
+    font_group.add(&font_row);
 
     let font_size_adjustment = gtk4::Adjustment::new(*current_font_size.borrow(), 6.0, 48.0, 1.0, 5.0, 0.0);
     let font_size_spin = gtk4::SpinButton::new(Some(&font_size_adjustment), 1.0, 0);
@@ -262,16 +274,37 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
         .activatable_widget(&font_size_spin)
         .build();
     font_size_row.add_suffix(&font_size_spin);
-    font_size_group.add(&font_size_row);
-    page.add(&font_size_group);
+    font_group.add(&font_size_row);
+    page.add(&font_group);
 
     let terminal_clone_for_font = terminal.clone();
+    let current_font_family_clone = Rc::clone(&current_font_family);
+    let current_font_size_clone_for_font_button = Rc::clone(&current_font_size);
+    let font_size_spin_clone = font_size_spin.clone();
+    font_button.connect_font_set(move |button| {
+        if let Some(font_desc) = button.font_desc() {
+            if let Some(family) = font_desc.family() {
+                *current_font_family_clone.borrow_mut() = family.to_string();
+            }
+            if font_desc.size() > 0 {
+                let new_size = font_desc.size() as f64 / pango::SCALE as f64;
+                *current_font_size_clone_for_font_button.borrow_mut() = new_size;
+                font_size_spin_clone.set_value(new_size);
+            }
+            let new_font_desc = format!("{} {}", current_font_family_clone.borrow(), current_font_size_clone_for_font_button.borrow());
+            let font_desc = pango::FontDescription::from_string(&new_font_desc);
+            terminal_clone_for_font.set_font(Some(&font_desc));
+        }
+    });
+
+    let terminal_clone_for_font_size = terminal.clone();
     let current_font_size_clone = Rc::clone(&current_font_size);
+    let current_font_family_clone_for_size = Rc::clone(&current_font_family);
     font_size_spin.connect_value_changed(move |spin| {
         let new_size = spin.value();
         *current_font_size_clone.borrow_mut() = new_size;
-        let font_desc = pango::FontDescription::from_string(&format!("Monospace {}", new_size));
-        terminal_clone_for_font.set_font(Some(&font_desc));
+        let font_desc = pango::FontDescription::from_string(&format!("{} {}", current_font_family_clone_for_size.borrow(), new_size));
+        terminal_clone_for_font_size.set_font(Some(&font_desc));
     });
 
     let general_group_clone = general_group.clone();
@@ -392,11 +425,13 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
     }
 
     // Save font size to settings from setting
+    let current_font_family_clone_for_save = Rc::clone(&current_font_family);
     let current_font_size_clone_for_save = Rc::clone(&current_font_size);
     preferences_window.connect_close_request(move |_window| {
         let mut settings_to_save = current_colors.borrow().clone();
         settings_to_save.active_preset = None; 
         save_color_settings(&settings_to_save);
+        save_font_family_setting(&current_font_family_clone_for_save.borrow());
         crate::config::save_font_size_setting(*current_font_size_clone_for_save.borrow());
         glib::Propagation::Proceed
     });
