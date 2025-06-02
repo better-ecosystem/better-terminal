@@ -13,3 +13,4 @@ This project is in its early stages of development.
 - [ ] Add background opacity
 - [x] Add option to change the font
 - [ ] Add zooming in / out
+- [ ] Fix bugs
