@@ -76,6 +76,7 @@ impl Default for ColorSettings {
 pub struct AppSettings {
     pub title_bar_visible: bool,
     pub colors: ColorSettings,
+    pub font_size: f64,
 }
 
 impl Default for AppSettings {
@@ -83,6 +84,7 @@ impl Default for AppSettings {
         AppSettings {
             title_bar_visible: true,
             colors: ColorSettings::default(),
+            font_size: 12.0,
         }
     }
 }
@@ -142,6 +144,11 @@ pub fn load_app_settings() -> AppSettings {
                             match parts[0] {
                                 "titlebar" => {
                                     app_settings.title_bar_visible = parts[1] == "true";
+                                }
+                                "font_size" => {
+                                    if let Ok(size) = parts[1].parse::<f64>() {
+                                        app_settings.font_size = size;
+                                    }
                                 }
                                 "active_preset" => {
                                     if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
@@ -246,11 +253,55 @@ pub fn save_title_bar_setting(is_visible: bool) {
 
         let mut output_lines: Vec<String> = normalized_content
             .lines()
-            .filter(|line_str| !line_str.trim().starts_with("titlebar ="))
+            .filter(|line_str| {
+                !line_str.trim().starts_with("titlebar =") &&
+                !line_str.trim().starts_with("font_size =")
+            })
             .map(|s| s.to_string())
             .collect();
 
         output_lines.push(format!("titlebar = {}", is_visible));
+
+        if let Ok(mut file) = File::create(config_path) {
+            if let Err(e) = file.write_all(output_lines.join("\n").as_bytes()) {
+                eprintln!("Failed to write to config file: {}", e);
+            }
+        } else {
+            eprintln!("Failed to create or open config file for writing.");
+        }
+    }
+}
+
+pub fn save_font_size_setting(font_size: f64) {
+    if let Some(config_path) = get_config_path() {
+        if let Some(parent_dir) = config_path.parent() {
+            if !parent_dir.exists() {
+                if let Err(e) = fs::create_dir_all(parent_dir) {
+                    eprintln!("Failed to create config directory: {}", e);
+                    return;
+                }
+            }
+        }
+
+        let mut existing_content = String::new();
+        if config_path.exists() {
+            if let Ok(mut file) = File::open(&config_path) {
+                if file.read_to_string(&mut existing_content).is_err() {
+                    eprintln!("Failed to read existing config file, will create/overwrite.");
+                    existing_content.clear();
+                }
+            }
+        }
+
+        let normalized_content = existing_content.replace("\\n", "\n");
+
+        let mut output_lines: Vec<String> = normalized_content
+            .lines()
+            .filter(|line_str| !line_str.trim().starts_with("font_size ="))
+            .map(|s| s.to_string())
+            .collect();
+
+        output_lines.push(format!("font_size = {}", font_size));
 
         if let Ok(mut file) = File::create(config_path) {
             if let Err(e) = file.write_all(output_lines.join("\n").as_bytes()) {

@@ -18,6 +18,7 @@ dependencies = [
  "gtk4",
  "gtk4-macros",
  "libadwaita",
+ "pango",
  "vte4",
 ]
 

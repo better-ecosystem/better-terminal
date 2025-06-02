@@ -8,7 +8,7 @@ use vte4::Terminal;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use crate::config::{save_title_bar_setting, load_color_settings, save_color_settings, ColorSettings, ColorSchemePreset, get_preset_colors, load_app_settings};
+use crate::config::{save_title_bar_setting, load_color_settings, save_color_settings, ColorSettings, ColorSchemePreset, load_app_settings};
 
 pub fn build_ui(app: &Application) {
     let terminal = Terminal::new();
@@ -17,9 +17,13 @@ pub fn build_ui(app: &Application) {
 
     let app_settings = load_app_settings();
     let colors = app_settings.colors;
+    let font_size = app_settings.font_size;
     let initial_title_bar_visible = app_settings.title_bar_visible;
 
     apply_color_settings(&terminal, &colors);
+    // Apply font size to terminal
+    let font_desc = pango::FontDescription::from_string(&format!("Monospace {}", font_size));
+    terminal.set_font(Some(&font_desc));
 
     let default_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
     terminal.spawn_async(
@@ -150,6 +154,8 @@ fn apply_color_settings(terminal: &Terminal, colors: &ColorSettings) {
 
 fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
     let current_colors = Rc::new(RefCell::new(load_color_settings()));
+    let app_settings = load_app_settings();
+    let current_font_size = Rc::new(RefCell::new(app_settings.font_size));
 
     let preferences_window = PreferencesWindow::builder()
         .title("Settings")
@@ -242,160 +248,39 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
 
     preferences_window.add(&page);
 
-    let general_group_clone = general_group.clone();
-    let ansi_group_clone = ansi_group.clone();
+    // Add font size control group
+    let font_size_group = PreferencesGroup::builder()
+        .title("Font Size")
+        .build();
 
-    let terminal_clone_for_preset_apply = terminal.clone();
-    let fg_button_clone_for_preset_update = fg_color_button.clone();
-    let bg_button_clone_for_preset_update = bg_color_button.clone();
-    let palette_buttons_clone_for_preset_update = palette_buttons.clone();
-    let current_colors_clone_for_preset = Rc::clone(&current_colors);
+    let font_size_adjustment = gtk4::Adjustment::new(*current_font_size.borrow(), 6.0, 48.0, 1.0, 5.0, 0.0);
+    let font_size_spin = gtk4::SpinButton::new(Some(&font_size_adjustment), 1.0, 0);
+    font_size_spin.set_numeric(true);
 
-    preset_dropdown.connect_selected_notify(move |dropdown| {
-        let selected_idx = dropdown.selected();
-        if let Some(preset) = ColorSchemePreset::all_presets().get(selected_idx as usize) {
-            let preset_settings = get_preset_colors(preset);
-            *current_colors_clone_for_preset.borrow_mut() = preset_settings.clone();
+    let font_size_row = ActionRow::builder()
+        .title("Font Size")
+        .activatable_widget(&font_size_spin)
+        .build();
+    font_size_row.add_suffix(&font_size_spin);
+    font_size_group.add(&font_size_row);
+    page.add(&font_size_group);
 
-            if preset.name() == "Custom" {
-                general_group_clone.set_visible(true);
-                ansi_group_clone.set_visible(true);
-            } else {
-                general_group_clone.set_visible(false);
-                ansi_group_clone.set_visible(false);
-            }
-            
-            if let Some(fg_str) = &preset_settings.foreground {
-                if let Ok(rgba) = fg_str.parse::<gdk::RGBA>() {
-                    fg_button_clone_for_preset_update.set_rgba(&rgba);
-                }
-            }
-            
-            if let Some(bg_str) = &preset_settings.background {
-                if let Ok(rgba) = bg_str.parse::<gdk::RGBA>() {
-                    bg_button_clone_for_preset_update.set_rgba(&rgba);
-                }
-            }
-            
-            for (i, p_button) in palette_buttons_clone_for_preset_update.iter().enumerate() {
-                if let Some(Some(color_str)) = preset_settings.palette.get(i) {
-                    if let Ok(rgba) = color_str.parse::<gdk::RGBA>() {
-                        p_button.set_rgba(&rgba);
-                    }
-                }
-            }
-            apply_color_settings(&terminal_clone_for_preset_apply, &preset_settings);
-        }
+    let terminal_clone_for_font = terminal.clone();
+    let current_font_size_clone = Rc::clone(&current_font_size);
+    font_size_spin.connect_value_changed(move |spin| {
+        let new_size = spin.value();
+        *current_font_size_clone.borrow_mut() = new_size;
+        let font_desc = pango::FontDescription::from_string(&format!("Monospace {}", new_size));
+        terminal_clone_for_font.set_font(Some(&font_desc));
     });
 
-    if let Some(active_preset_name) = &current_colors.borrow().active_preset {
-        if active_preset_name == "Custom" {
-            general_group.set_visible(true);
-            ansi_group.set_visible(true);
-        } else {
-            general_group.set_visible(false);
-            ansi_group.set_visible(false);
-        }
-    } else {
-        general_group.set_visible(true);
-        ansi_group.set_visible(true);
-    }
-
-    let terminal_fg_clone = terminal.clone();
-    let preset_dropdown_clone_fg = preset_dropdown.clone();
-    let current_colors_clone_fg = Rc::clone(&current_colors);
-    fg_color_button.connect_notify_local(Some("rgba"), move |button, _paramspec| {
-        let rgba = button.rgba();
-        let mut new_colors = load_color_settings(); 
-        new_colors.foreground = Some(rgba.to_string());
-        new_colors.active_preset = None; 
-        preset_dropdown_clone_fg.set_selected(gtk4::INVALID_LIST_POSITION); 
-        apply_color_settings(&terminal_fg_clone, &new_colors);
-        
-        let mut borrowed_current_colors = current_colors_clone_fg.borrow_mut();
-        borrowed_current_colors.foreground = Some(rgba.to_string()); 
-        borrowed_current_colors.active_preset = None;
-    });
-
-    let terminal_bg_clone = terminal.clone();
-    let preset_dropdown_clone_bg = preset_dropdown.clone();
-    let current_colors_clone_bg = Rc::clone(&current_colors);
-    bg_color_button.connect_notify_local(Some("rgba"), move |button, _paramspec| {
-        let rgba = button.rgba();
-        let mut new_colors = load_color_settings(); 
-        new_colors.background = Some(rgba.to_string());
-        new_colors.active_preset = None; 
-        preset_dropdown_clone_bg.set_selected(gtk4::INVALID_LIST_POSITION);
-        apply_color_settings(&terminal_bg_clone, &new_colors);
-
-        let mut borrowed_current_colors = current_colors_clone_bg.borrow_mut();
-        borrowed_current_colors.background = Some(rgba.to_string()); 
-        borrowed_current_colors.active_preset = None;
-    });
-
-    for (i, p_button) in palette_buttons.iter().enumerate() {
-        let p_button_clone = p_button.clone();
-        let terminal_palette_clone = terminal.clone();
-        let preset_dropdown_clone_palette = preset_dropdown.clone();
-        let current_colors_clone_palette = Rc::clone(&current_colors);
-
-        p_button_clone.connect_notify_local(Some("rgba"), move |btn, _|
-            {
-                let rgba = btn.rgba();
-                let mut updated_colors = load_color_settings(); 
-                if i < updated_colors.palette.len() {
-                    updated_colors.palette[i] = Some(rgba.to_string());
-                }
-                updated_colors.active_preset = None; 
-                preset_dropdown_clone_palette.set_selected(gtk4::INVALID_LIST_POSITION);
-                apply_color_settings(&terminal_palette_clone, &updated_colors);
-                
-                let mut borrowed_current_colors = current_colors_clone_palette.borrow_mut();
-                if i < borrowed_current_colors.palette.len() {
-                    borrowed_current_colors.palette[i] = Some(rgba.to_string());
-                }
-                borrowed_current_colors.active_preset = None;
-            }
-        );
-    }
-
-    let fg_button_clone_for_save = fg_color_button.clone();
-    let bg_button_clone_for_save = bg_color_button.clone();
-    let palette_buttons_clone_for_save = palette_buttons.clone();
-    let terminal_clone_for_save = terminal.clone();
-    let preset_dropdown_clone_save = preset_dropdown.clone();
-    let current_colors_clone_save = Rc::clone(&current_colors);
-
+    // Save font size to settings from setting
+    let current_font_size_clone_for_save = Rc::clone(&current_font_size);
     preferences_window.connect_close_request(move |_window| {
-        let mut settings_to_save = current_colors_clone_save.borrow().clone();
-        let selected_idx_at_close = preset_dropdown_clone_save.selected();
-
-        if selected_idx_at_close != gtk4::INVALID_LIST_POSITION {
-            if let Some(selected_preset_object) = ColorSchemePreset::all_presets().get(selected_idx_at_close as usize) {
-                settings_to_save = get_preset_colors(selected_preset_object);
-            } else {
-                settings_to_save.active_preset = None;
-                settings_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
-                settings_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
-                for (idx, p_button) in palette_buttons_clone_for_save.iter().enumerate() {
-                    if idx < settings_to_save.palette.len() {
-                        settings_to_save.palette[idx] = Some(p_button.rgba().to_string());
-                    }
-                }
-            }
-        } else {
-            settings_to_save.active_preset = None;
-            settings_to_save.foreground = Some(fg_button_clone_for_save.rgba().to_string());
-            settings_to_save.background = Some(bg_button_clone_for_save.rgba().to_string());
-            for (idx, p_button) in palette_buttons_clone_for_save.iter().enumerate() {
-                if idx < settings_to_save.palette.len() {
-                    settings_to_save.palette[idx] = Some(p_button.rgba().to_string());
-                }
-            }
-        }
-
+        let mut settings_to_save = current_colors.borrow().clone();
+        settings_to_save.active_preset = None; 
         save_color_settings(&settings_to_save);
-        apply_color_settings(&terminal_clone_for_save, &settings_to_save);
+        crate::config::save_font_size_setting(*current_font_size_clone_for_save.borrow());
         glib::Propagation::Proceed
     });
 
