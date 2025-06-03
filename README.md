@@ -10,7 +10,7 @@ This project is in its early stages of development.
 - [x] Make a settings window
 - [x] Add color schemes
 - [ ] Make it faster
-- [x] Add background opacity
+- [ ] Add background opacity
 - [x] Add option to change the font
 - [ ] Add zooming in / out
 - [ ] Fix bugs
