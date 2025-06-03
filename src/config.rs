@@ -130,121 +130,140 @@ pub fn get_config_path() -> Option<PathBuf> {
 
 pub fn load_app_settings() -> AppSettings {
     let mut app_settings = AppSettings::default();
-    if let Some(config_path) = get_config_path() {
-        if config_path.exists() {
-            if let Ok(mut file) = File::open(config_path) {
-                let mut contents = String::new();
-                if file.read_to_string(&mut contents).is_ok() {
-                    let mut preset_from_config: Option<ColorSchemePreset> = None;
+    
+    let config_path = match get_config_path() {
+        Some(path) if path.exists() => path,
+        _ => return app_settings,
+    };
 
-                    for line in contents.lines() {
-                        let trimmed_line = line.trim();
-                        if trimmed_line.is_empty() {
-                            continue;
-                        }
+    let mut file = match File::open(config_path) {
+        Ok(file) => file,
+        Err(_) => return app_settings,
+    };
 
-                        let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
-                        if parts.len() == 2 {
-                    match parts[0] {
-                        "titlebar" => {
-                            app_settings.title_bar_visible = parts[1] == "true";
-                        }
-                        "font_size" => {
-                            if let Ok(size) = parts[1].parse::<f64>() {
-                                app_settings.font_size = size;
-                            }
-                        }
-                        "font_family" => {
-                            app_settings.font_family = parts[1].to_string();
-                        }
-                        "font_name" => {
-                            app_settings.font_family = parts[1].to_string();
-                        }
-                        "active_preset" => {
-                            if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
-                                app_settings.colors = get_preset_colors(&preset);
-                                preset_from_config = Some(preset);
-                            }
-                            app_settings.colors.active_preset = Some(parts[1].to_string());
-                        }
-                        "foreground" => if preset_from_config.is_none() {
-                            app_settings.colors.foreground = Some(parts[1].to_string());
-                        },
-                        "background" => if preset_from_config.is_none() {
-                            app_settings.colors.background = Some(parts[1].to_string());
-                        },
-                        "background_opacity" => {
-                            if let Ok(opacity) = parts[1].parse::<f64>() {
-                                app_settings.colors.background_opacity = Some(opacity);
-                            }
-                        },
-                        key if key.starts_with("color") => {
-                            if preset_from_config.is_none() {
-                                if let Ok(index) = key["color".len()..].parse::<usize>() {
-                                    if index < app_settings.colors.palette.len() {
-                                        app_settings.colors.palette[index] = Some(parts[1].to_string());
-                                    }
-                                }
-                            }
-                        }
-                        _ => {} // Ignore other keys
-                    }
-                        }
+    let mut contents = String::new();
+    if file.read_to_string(&mut contents).is_err() {
+        return app_settings;
+    }
+
+    let mut preset_from_config: Option<ColorSchemePreset> = None;
+
+    for line in contents.lines() {
+        let trimmed_line = line.trim();
+        if trimmed_line.is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
+        if parts.len() != 2 {
+            continue;
+        }
+
+        match parts[0] {
+            "titlebar" => {
+                app_settings.title_bar_visible = parts[1] == "true";
+            }
+            "font_size" => {
+                if let Ok(size) = parts[1].parse::<f64>() {
+                    app_settings.font_size = size;
+                }
+            }
+            "font_family" | "font_name" => {
+                app_settings.font_family = parts[1].to_string();
+            }
+            "active_preset" => {
+                if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
+                    app_settings.colors = get_preset_colors(&preset);
+                    preset_from_config = Some(preset);
+                }
+                app_settings.colors.active_preset = Some(parts[1].to_string());
+            }
+            "foreground" if preset_from_config.is_none() => {
+                app_settings.colors.foreground = Some(parts[1].to_string());
+            }
+            "background" if preset_from_config.is_none() => {
+                app_settings.colors.background = Some(parts[1].to_string());
+            }
+            "background_opacity" => {
+                if let Ok(opacity) = parts[1].parse::<f64>() {
+                    app_settings.colors.background_opacity = Some(opacity);
+                }
+            }
+            key if key.starts_with("color") && preset_from_config.is_none() => {
+                if let Ok(index) = key["color".len()..].parse::<usize>() {
+                    if index < app_settings.colors.palette.len() {
+                        app_settings.colors.palette[index] = Some(parts[1].to_string());
                     }
                 }
             }
+            _ => {}
         }
     }
+    
     app_settings
 }
 
 pub fn load_color_settings() -> ColorSettings {
     let mut settings = ColorSettings::default();
-    if let Some(config_path) = get_config_path() {
-        if config_path.exists() {
-            if let Ok(mut file) = File::open(config_path) {
-                let mut contents = String::new();
-                if file.read_to_string(&mut contents).is_ok() {
-                    let mut preset_from_config: Option<ColorSchemePreset> = None;
-                    for line in contents.lines() {
-                        let trimmed_line = line.trim();
-                        if trimmed_line.is_empty() {
-                            continue;
-                        }
-                        let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
-                        if parts.len() == 2 {
-                    match parts[0] {
-                        "active_preset" => {
-                            if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
-                                settings = get_preset_colors(&preset); 
-                                preset_from_config = Some(preset);
-                            }
-                            settings.active_preset = Some(parts[1].to_string()); 
-                        }
-                        "foreground" => if preset_from_config.is_none() { settings.foreground = Some(parts[1].to_string()) },
-                        "background" => if preset_from_config.is_none() { settings.background = Some(parts[1].to_string()) },
-                        "background_opacity" => {
-                            if let Ok(opacity) = parts[1].parse::<f64>() {
-                                settings.background_opacity = Some(opacity);
-                            }
-                        },
-                        key if key.starts_with("color") => {
-                            if preset_from_config.is_none() {
-                                if let Ok(index) = key["color".len()..].parse::<usize>() {
-                                    if index < settings.palette.len() {
-                                        settings.palette[index] = Some(parts[1].to_string());
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                        }
+    
+    let config_path = match get_config_path() {
+        Some(path) if path.exists() => path,
+        _ => return settings,
+    };
+
+    let mut file = match File::open(config_path) {
+        Ok(file) => file,
+        Err(_) => return settings,
+    };
+
+    let mut contents = String::new();
+    if file.read_to_string(&mut contents).is_err() {
+        return settings;
+    }
+
+    let mut preset_from_config: Option<ColorSchemePreset> = None;
+    
+    for line in contents.lines() {
+        let trimmed_line = line.trim();
+        if trimmed_line.is_empty() {
+            continue;
+        }
+        
+        let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
+        if parts.len() != 2 {
+            continue;
+        }
+
+        match parts[0] {
+            "active_preset" => {
+                if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
+                    settings = get_preset_colors(&preset);
+                    preset_from_config = Some(preset);
+                }
+                settings.active_preset = Some(parts[1].to_string());
+            }
+            "foreground" if preset_from_config.is_none() => {
+                settings.foreground = Some(parts[1].to_string());
+            }
+            "background" if preset_from_config.is_none() => {
+                settings.background = Some(parts[1].to_string());
+            }
+            "background_opacity" => {
+                if let Ok(opacity) = parts[1].parse::<f64>() {
+                    settings.background_opacity = Some(opacity);
+                }
+            }
+            key if key.starts_with("color") && preset_from_config.is_none() => {
+                if let Ok(index) = key["color".len()..].parse::<usize>() {
+                    if index < settings.palette.len() {
+                        settings.palette[index] = Some(parts[1].to_string());
                     }
                 }
             }
+            _ => {}
         }
     }
+    
     settings
 }
 
