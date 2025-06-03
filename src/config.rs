@@ -57,6 +57,7 @@ impl ColorSchemePreset {
 pub struct ColorSettings {
     pub foreground: Option<String>,
     pub background: Option<String>,
+    pub background_opacity: Option<f64>,
     pub palette: Vec<Option<String>>,
     pub active_preset: Option<String>,
 }
@@ -66,6 +67,7 @@ impl Default for ColorSettings {
         ColorSettings {
             foreground: None,
             background: None,
+            background_opacity: Some(1.0),
             palette: vec![None; 16],
             active_preset: None,
         }
@@ -143,45 +145,50 @@ pub fn load_app_settings() -> AppSettings {
 
                         let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
                         if parts.len() == 2 {
-                            match parts[0] {
-                                "titlebar" => {
-                                    app_settings.title_bar_visible = parts[1] == "true";
-                                }
-                                "font_size" => {
-                                    if let Ok(size) = parts[1].parse::<f64>() {
-                                        app_settings.font_size = size;
-                                    }
-                                }
-                                "font_family" => {
-                                    app_settings.font_family = parts[1].to_string();
-                                }
-                                "font_name" => {
-                                    app_settings.font_family = parts[1].to_string();
-                                }
-                                "active_preset" => {
-                                    if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
-                                        app_settings.colors = get_preset_colors(&preset);
-                                        preset_from_config = Some(preset);
-                                    }
-                                    app_settings.colors.active_preset = Some(parts[1].to_string());
-                                }
-                                "foreground" => if preset_from_config.is_none() {
-                                    app_settings.colors.foreground = Some(parts[1].to_string());
-                                },
-                                "background" => if preset_from_config.is_none() {
-                                    app_settings.colors.background = Some(parts[1].to_string());
-                                },
-                                key if key.starts_with("color") => {
-                                    if preset_from_config.is_none() {
-                                        if let Ok(index) = key["color".len()..].parse::<usize>() {
-                                            if index < app_settings.colors.palette.len() {
-                                                app_settings.colors.palette[index] = Some(parts[1].to_string());
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {} // Ignore other keys
+                    match parts[0] {
+                        "titlebar" => {
+                            app_settings.title_bar_visible = parts[1] == "true";
+                        }
+                        "font_size" => {
+                            if let Ok(size) = parts[1].parse::<f64>() {
+                                app_settings.font_size = size;
                             }
+                        }
+                        "font_family" => {
+                            app_settings.font_family = parts[1].to_string();
+                        }
+                        "font_name" => {
+                            app_settings.font_family = parts[1].to_string();
+                        }
+                        "active_preset" => {
+                            if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
+                                app_settings.colors = get_preset_colors(&preset);
+                                preset_from_config = Some(preset);
+                            }
+                            app_settings.colors.active_preset = Some(parts[1].to_string());
+                        }
+                        "foreground" => if preset_from_config.is_none() {
+                            app_settings.colors.foreground = Some(parts[1].to_string());
+                        },
+                        "background" => if preset_from_config.is_none() {
+                            app_settings.colors.background = Some(parts[1].to_string());
+                        },
+                        "background_opacity" => {
+                            if let Ok(opacity) = parts[1].parse::<f64>() {
+                                app_settings.colors.background_opacity = Some(opacity);
+                            }
+                        },
+                        key if key.starts_with("color") => {
+                            if preset_from_config.is_none() {
+                                if let Ok(index) = key["color".len()..].parse::<usize>() {
+                                    if index < app_settings.colors.palette.len() {
+                                        app_settings.colors.palette[index] = Some(parts[1].to_string());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {} // Ignore other keys
+                    }
                         }
                     }
                 }
@@ -206,27 +213,32 @@ pub fn load_color_settings() -> ColorSettings {
                         }
                         let parts: Vec<&str> = trimmed_line.split('=').map(|s| s.trim()).collect();
                         if parts.len() == 2 {
-                            match parts[0] {
-                                "active_preset" => {
-                                    if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
-                                        settings = get_preset_colors(&preset); 
-                                        preset_from_config = Some(preset);
-                                    }
-                                    settings.active_preset = Some(parts[1].to_string()); 
-                                }
-                                "foreground" => if preset_from_config.is_none() { settings.foreground = Some(parts[1].to_string()) },
-                                "background" => if preset_from_config.is_none() { settings.background = Some(parts[1].to_string()) },
-                                key if key.starts_with("color") => {
-                                    if preset_from_config.is_none() {
-                                        if let Ok(index) = key["color".len()..].parse::<usize>() {
-                                            if index < settings.palette.len() {
-                                                settings.palette[index] = Some(parts[1].to_string());
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {}
+                    match parts[0] {
+                        "active_preset" => {
+                            if let Some(preset) = ColorSchemePreset::from_name(parts[1]) {
+                                settings = get_preset_colors(&preset); 
+                                preset_from_config = Some(preset);
                             }
+                            settings.active_preset = Some(parts[1].to_string()); 
+                        }
+                        "foreground" => if preset_from_config.is_none() { settings.foreground = Some(parts[1].to_string()) },
+                        "background" => if preset_from_config.is_none() { settings.background = Some(parts[1].to_string()) },
+                        "background_opacity" => {
+                            if let Ok(opacity) = parts[1].parse::<f64>() {
+                                settings.background_opacity = Some(opacity);
+                            }
+                        },
+                        key if key.starts_with("color") => {
+                            if preset_from_config.is_none() {
+                                if let Ok(index) = key["color".len()..].parse::<usize>() {
+                                    if index < settings.palette.len() {
+                                        settings.palette[index] = Some(parts[1].to_string());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
                         }
                     }
                 }
@@ -392,6 +404,7 @@ pub fn save_color_settings(settings: &ColorSettings) {
                 let trimmed_line = line_str.trim();
                 if trimmed_line.starts_with("foreground =") { return false; }
                 if trimmed_line.starts_with("background =") { return false; }
+                if trimmed_line.starts_with("background_opacity =") { return false; }
                 if trimmed_line.starts_with("active_preset =") { return false; }
                 if trimmed_line.starts_with("color") && trimmed_line.contains('=') { return false; }
                 true 
@@ -407,6 +420,9 @@ pub fn save_color_settings(settings: &ColorSettings) {
                 if let Some(bg) = &settings.background {
                     new_lines.push(format!("background = {}", bg));
                 }
+                if let Some(opacity) = &settings.background_opacity {
+                    new_lines.push(format!("background_opacity = {}", opacity));
+                }
                 for (i, color_opt) in settings.palette.iter().enumerate() {
                     if let Some(color_val) = color_opt {
                         new_lines.push(format!("color{} = {}", i, color_val));
@@ -419,6 +435,9 @@ pub fn save_color_settings(settings: &ColorSettings) {
             }
             if let Some(bg) = &settings.background {
                 new_lines.push(format!("background = {}", bg));
+            }
+            if let Some(opacity) = &settings.background_opacity {
+                new_lines.push(format!("background_opacity = {}", opacity));
             }
             for (i, color_opt) in settings.palette.iter().enumerate() {
                 if let Some(color_val) = color_opt {

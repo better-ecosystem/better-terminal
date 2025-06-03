@@ -4,6 +4,7 @@ pub fn get_colors() -> ColorSettings {
     ColorSettings {
         foreground: Some("#ebdbb2".to_string()), // fg
         background: Some("#282828".to_string()), // bg
+        background_opacity: Some(1.0),
         palette: vec![
             Some("#282828".to_string()), // Normal Black (bg0_h)
             Some("#cc241d".to_string()), // Normal Red

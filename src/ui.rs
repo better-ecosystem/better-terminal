@@ -97,8 +97,9 @@ pub fn build_ui(app: &Application) {
     let open_settings_action = gio::SimpleAction::new("open_settings", None);
     let window_clone_for_settings = window.clone();
     let terminal_clone_for_settings = terminal.clone();
+    let window_for_settings = window.clone();
     open_settings_action.connect_activate(move |_, _| {
-        build_settings_window(&window_clone_for_settings, &terminal_clone_for_settings);
+        build_settings_window(&window_clone_for_settings, &terminal_clone_for_settings, &window_for_settings);
     });
     window.add_action(&open_settings_action);
 
@@ -121,7 +122,12 @@ fn apply_color_settings(terminal: &Terminal, colors: &ColorSettings) {
 
     if let Some(bg_str) = &colors.background {
         if let Ok(rgba) = bg_str.parse::<gdk::RGBA>() {
-            terminal.set_color_background(&rgba);
+            if let Some(opacity) = colors.background_opacity {
+                let rgba = gdk::RGBA::new(rgba.red(), rgba.green(), rgba.blue(), opacity as f32);
+                terminal.set_color_background(&rgba);
+            } else {
+                terminal.set_color_background(&rgba);
+            }
         } else {
             eprintln!("Failed to parse background color for apply: {}", bg_str);
         }
@@ -152,7 +158,7 @@ fn apply_color_settings(terminal: &Terminal, colors: &ColorSettings) {
     }
 }
 
-fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
+fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal, window: &ApplicationWindow) {
     let current_colors = Rc::new(RefCell::new(load_color_settings()));
     let app_settings = load_app_settings();
     let current_font_family = Rc::new(RefCell::new(app_settings.font_family));
@@ -221,6 +227,27 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
         .build();
     bg_row.add_suffix(&bg_color_button);
     general_group.add(&bg_row);
+
+    // background opacity control
+    let opacity_adjustment = gtk4::Adjustment::new(
+        current_colors.borrow().background_opacity.unwrap_or(1.0),
+        0.0,
+        1.0,
+        0.01,
+        0.1,
+        0.0,
+    );
+    let opacity_scale = gtk4::Scale::new(gtk4::Orientation::Horizontal, Some(&opacity_adjustment));
+    opacity_scale.set_digits(2);
+    opacity_scale.set_hexpand(true);
+
+    let opacity_row = ActionRow::builder()
+        .title("Background Opacity")
+        .activatable_widget(&opacity_scale)
+        .build();
+    opacity_row.add_suffix(&opacity_scale);
+    general_group.add(&opacity_row);
+
     page.add(&general_group);
     
     let ansi_group = PreferencesGroup::builder()
@@ -395,6 +422,24 @@ fn build_settings_window(parent: &ApplicationWindow, terminal: &Terminal) {
 
         let mut borrowed_current_colors = current_colors_clone_bg.borrow_mut();
         borrowed_current_colors.background = Some(rgba.to_string()); 
+        borrowed_current_colors.active_preset = None;
+    });
+
+    let terminal_opacity_clone = terminal.clone();
+    let preset_dropdown_clone_opacity = preset_dropdown.clone();
+    let current_colors_clone_opacity = Rc::clone(&current_colors);
+    let window_clone = window.clone();
+    opacity_scale.connect_value_changed(move |scale| {
+        window_clone.set_opacity(scale.value());
+        let opacity = scale.value();
+        let mut new_colors = load_color_settings();
+        new_colors.background_opacity = Some(opacity);
+        new_colors.active_preset = None;
+        preset_dropdown_clone_opacity.set_selected(gtk4::INVALID_LIST_POSITION);
+        apply_color_settings(&terminal_opacity_clone, &new_colors);
+
+        let mut borrowed_current_colors = current_colors_clone_opacity.borrow_mut();
+        borrowed_current_colors.background_opacity = Some(opacity);
         borrowed_current_colors.active_preset = None;
     });
 
