@@ -12,5 +12,5 @@ This project is in its early stages of development.
 - [ ] Make it faster
 - [ ] Add background opacity
 - [x] Add option to change the font
-- [ ] Add zooming in / out
+- [x] Add zooming in / out
 - [ ] Fix bugs
