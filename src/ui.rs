@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use vte4::prelude::*;
-use gtk4::{gio, Application, Box, Orientation, PopoverMenu, GestureClick, ColorButton, gdk, DropDown, StringList, FontButton}; 
+use gtk4::{gio, Application, Box, Orientation, PopoverMenu, GestureClick, ColorButton, gdk, DropDown, StringList, FontButton, EventControllerKey}; 
 use libadwaita::{ApplicationWindow, HeaderBar, PreferencesWindow, PreferencesGroup, ActionRow};
 use libadwaita::prelude::*;
 
@@ -15,14 +15,15 @@ pub fn build_ui(app: &Application) {
     terminal.set_hexpand(true);
     terminal.set_vexpand(true);
 
-    let app_settings = load_app_settings();
-    let colors = app_settings.colors;
-    let font_family = app_settings.font_family;
-    let font_size = app_settings.font_size;
-    let initial_title_bar_visible = app_settings.title_bar_visible;
+    let app_settings_rc = Rc::new(RefCell::new(load_app_settings()));
+    
+    let initial_colors = app_settings_rc.borrow().colors.clone();
+    let initial_font_family = app_settings_rc.borrow().font_family.clone();
+    let initial_font_size = app_settings_rc.borrow().font_size;
+    let initial_title_bar_visible = app_settings_rc.borrow().title_bar_visible;
 
-    apply_color_settings(&terminal, &colors);
-    let font_desc = pango::FontDescription::from_string(&format!("{} {}", font_family, font_size));
+    apply_color_settings(&terminal, &initial_colors);
+    let font_desc = pango::FontDescription::from_string(&format!("{} {}", initial_font_family, initial_font_size));
     terminal.set_font(Some(&font_desc));
 
     let default_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
@@ -107,6 +108,51 @@ pub fn build_ui(app: &Application) {
     terminal.connect_child_exited(move |_terminal, _status| {
         window_clone.close();
     });
+
+    // KEY CONTROLLER FOR FONT SIZE
+    let key_controller = EventControllerKey::new();
+    let terminal_clone_for_keys = terminal.clone();
+    let app_settings_for_keys = Rc::clone(&app_settings_rc);
+
+    key_controller.connect_key_pressed(move |_, keyval, _, modifier| {
+        if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
+            let mut app_settings_borrowed = app_settings_for_keys.borrow_mut();
+            let mut new_font_size = app_settings_borrowed.font_size;
+            let mut changed = false;
+
+            const MIN_FONT_SIZE: f64 = 6.0;
+            const MAX_FONT_SIZE: f64 = 72.0;
+            const FONT_STEP: f64 = 1.0;
+
+            match keyval {
+                gdk::Key::plus | gdk::Key::equal | gdk::Key::KP_Add => {
+                    if new_font_size < MAX_FONT_SIZE {
+                        new_font_size = (new_font_size + FONT_STEP).min(MAX_FONT_SIZE);
+                        changed = true;
+                    }
+                }
+                gdk::Key::minus | gdk::Key::KP_Subtract => {
+                    if new_font_size > MIN_FONT_SIZE {
+                        new_font_size = (new_font_size - FONT_STEP).max(MIN_FONT_SIZE);
+                        changed = true;
+                    }
+                }
+                _ => return glib::Propagation::Proceed,
+            }
+
+            if changed {
+                app_settings_borrowed.font_size = new_font_size;
+                let font_desc = pango::FontDescription::from_string(
+                    &format!("{} {}", app_settings_borrowed.font_family, new_font_size)
+                );
+                terminal_clone_for_keys.set_font(Some(&font_desc));
+                crate::config::save_font_size_setting(new_font_size);
+                return glib::Propagation::Stop; 
+            }
+        }
+        glib::Propagation::Proceed
+    });
+    terminal.add_controller(key_controller);
 
     window.present();
 }
